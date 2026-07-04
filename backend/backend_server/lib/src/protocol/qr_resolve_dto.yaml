@@ -1,0 +1,9 @@
+class: QrResolveDto
+fields:
+  resultId: int
+  testId: int
+  testName: String?
+  maskedPatientName: String
+  maskedMobile: String
+  isUploaded: bool
+  submittedAt: DateTime?

@@ -1,0 +1,4 @@
+class: QrTokenDto
+fields:
+  resultId: int
+  qrToken: String

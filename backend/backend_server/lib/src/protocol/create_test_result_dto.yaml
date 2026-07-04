@@ -1,0 +1,4 @@
+class: CreateTestResultDto
+fields:
+  resultId: int
+  qrToken: String

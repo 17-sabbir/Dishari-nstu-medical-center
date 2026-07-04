@@ -2286,6 +2286,85 @@ class Endpoints extends _i1.EndpointDispatch {
               ) async => (endpoints['lab'] as _i8.LabEndpoint)
                   .getLast10TestHistory(session),
         ),
+        'generateResultQr': _i1.MethodConnector(
+          name: 'generateResultQr',
+          params: {
+            'resultId': _i1.ParameterDescription(
+              name: 'resultId',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['lab'] as _i8.LabEndpoint).generateResultQr(
+                session,
+                resultId: params['resultId'],
+              ),
+        ),
+        'regenerateResultQr': _i1.MethodConnector(
+          name: 'regenerateResultQr',
+          params: {
+            'resultId': _i1.ParameterDescription(
+              name: 'resultId',
+              type: _i1.getType<int>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async =>
+                  (endpoints['lab'] as _i8.LabEndpoint).regenerateResultQr(
+                    session,
+                    resultId: params['resultId'],
+                  ),
+        ),
+        'resolveQrToken': _i1.MethodConnector(
+          name: 'resolveQrToken',
+          params: {
+            'token': _i1.ParameterDescription(
+              name: 'token',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['lab'] as _i8.LabEndpoint).resolveQrToken(
+                session,
+                token: params['token'],
+              ),
+        ),
+        'recordQrScan': _i1.MethodConnector(
+          name: 'recordQrScan',
+          params: {
+            'token': _i1.ParameterDescription(
+              name: 'token',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+            'action': _i1.ParameterDescription(
+              name: 'action',
+              type: _i1.getType<String>(),
+              nullable: false,
+            ),
+          },
+          call:
+              (
+                _i1.Session session,
+                Map<String, dynamic> params,
+              ) async => (endpoints['lab'] as _i8.LabEndpoint).recordQrScan(
+                session,
+                token: params['token'],
+                action: params['action'],
+              ),
+        ),
       },
     );
     connectors['notification'] = _i1.EndpointConnector(

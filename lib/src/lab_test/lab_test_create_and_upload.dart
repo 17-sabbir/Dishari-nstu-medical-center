@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../cloudinary_upload.dart';
 import '../date_time_utils.dart';
 import '../route_refresh.dart';
+import 'lab_qr_generate.dart';
 
 class LabTestCreateAndUpload extends StatefulWidget {
   const LabTestCreateAndUpload({super.key});
@@ -169,6 +170,22 @@ class LabTestCreateAndUploadState extends State<LabTestCreateAndUpload>
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Show / print QR for this result (sample label + staff scan flow)
+            if (r.resultId != null)
+              IconButton(
+                tooltip: 'QR দেখুন',
+                icon: const Icon(Icons.qr_code_2, color: Colors.deepPurple),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          LabQrGenerateScreen(resultId: r.resultId!),
+                    ),
+                  );
+                },
+              ),
+
             // View previous attachment if exists
             if (r.attachmentPath != null)
               IconButton(
@@ -498,7 +515,7 @@ class LabTestCreateAndUploadState extends State<LabTestCreateAndUpload>
                   final patientType = selectedPatientType;
                   debugPrint('Creating test with patientType: $patientType');
 
-                  await client.lab.createTestResult(
+                  final created = await client.lab.createTestResult(
                     testId: testId,
                     patientName: name,
                     mobileNumber: mobileNumber,
@@ -506,7 +523,24 @@ class LabTestCreateAndUploadState extends State<LabTestCreateAndUpload>
                   );
 
                   Navigator.pop(ctx);
-                  fetchResults();
+                  await fetchResults();
+
+                  if (created != null && mounted) {
+                    // Test created + lifetime QR generated in one call —
+                    // jump straight to it so the tester can print it and
+                    // stick it on the sample right away.
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            LabQrGenerateScreen(resultId: created.resultId),
+                      ),
+                    );
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Test create করা যায়নি।')),
+                    );
+                  }
                 },
                 child: const Text("Create"),
               ),

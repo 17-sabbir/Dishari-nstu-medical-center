@@ -9,3 +9,6 @@ fields:
   attachmentPath: String?
   submittedAt: DateTime?
   createdAt: DateTime?
+  qrToken: String?
+  qrExpiresAt: DateTime?
+  qrScannedCount: int?

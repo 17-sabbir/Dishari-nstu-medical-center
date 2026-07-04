@@ -87,6 +87,10 @@ lab:
   - updateStaffProfile:
   - getLabHomeTwoDaySummary:
   - getLast10TestHistory:
+  - generateResultQr:
+  - regenerateResultQr:
+  - resolveQrToken:
+  - recordQrScan:
 notification:
   - createNotification:
   - getMyNotifications:

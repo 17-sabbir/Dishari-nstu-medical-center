@@ -124,7 +124,6 @@ mixin RouteRefreshMixin<T extends StatefulWidget> on State<T>
   @override
   void didChangeViewFocus(ViewFocusEvent event) {}
 
-  @override
   void handleStatusBarTap() {}
 
   @override

@@ -2,8 +2,16 @@ import 'package:serverpod/serverpod.dart';
 import 'package:backend_server/src/generated/protocol.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math';
 
 import '../utils/auth_user.dart';
+
+/// Roles allowed to generate/scan lab QR codes.
+const _labQrRoles = {'LABSTAFF', 'ADMIN'};
+
+// NOTE: QR codes are lifetime-valid (no expiry) — they're generated once
+// at sample-creation time and stay valid until the lab manually
+// regenerates one (e.g. a damaged/lost printed label).
 
 class LabEndpoint extends Endpoint {
   @override
@@ -39,7 +47,10 @@ class LabEndpoint extends Endpoint {
   }
 
   //result upload er jonnne user er test create
-  Future<bool> createTestResult(
+  /// Creates a new test-result record AND immediately generates its
+  /// lifetime-valid QR token in the same call, so the tester can print
+  /// the QR right away and stick it on the sample.
+  Future<CreateTestResultDto?> createTestResult(
     Session session, {
     required int testId,
     required String patientName,
@@ -47,24 +58,35 @@ class LabEndpoint extends Endpoint {
     String patientType = 'STUDENT',
   }) async {
     try {
-      await session.db.unsafeExecute(
+      await requireRole(session, _labQrRoles);
+
+      final token = _generateOpaqueToken();
+
+      final rows = await session.db.unsafeQuery(
         '''
-      INSERT INTO test_results 
-      (test_id, patient_name, mobile_number, patient_type)
-      VALUES (@testId, @patientName, @mobile, @patientType)
-      ''',
+        INSERT INTO test_results
+          (test_id, patient_name, mobile_number, patient_type,
+           qr_token, qr_generated_at)
+        VALUES (@testId, @patientName, @mobile, @patientType, @token, NOW())
+        RETURNING result_id
+        ''',
         parameters: QueryParameters.named({
           'testId': testId,
           'patientName': patientName,
           'mobile': mobileNumber,
           'patientType': patientType,
+          'token': token,
         }),
       );
-      return true;
+
+      if (rows.isEmpty) return null;
+      final resultId = rows.first.toColumnMap()['result_id'] as int;
+
+      return CreateTestResultDto(resultId: resultId, qrToken: token);
     } catch (e, st) {
       session.log('Create test result failed: $e',
           level: LogLevel.error, stackTrace: st);
-      return false;
+      return null;
     }
   }
 
@@ -459,5 +481,217 @@ class LabEndpoint extends Endpoint {
     // PostgreSQL NUMERIC often comes back as a String or double via the driver
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString()) ?? 0.0;
+  }
+
+  // ===================================================================
+  // QR CODE WORKFLOW
+  //
+  // Design notes:
+  //  - The QR encodes an opaque random token, NOT the result_id, so a
+  //    lost/photographed QR can't be used to enumerate other records.
+  //  - A valid QR token alone is never enough: every scan-triggered call
+  //    still requires an authenticated LABSTAFF/ADMIN session (defense
+  //    in depth — see requireRole()).
+  //  - Every scan is written to qr_scan_log for audit purposes.
+  // ===================================================================
+
+  String _generateOpaqueToken() {
+    // 16 bytes = 128 bits of entropy, URL-safe base64, no padding.
+    final rand = Random.secure();
+    final bytes = List<int>.generate(16, (_) => rand.nextInt(256));
+    return base64Url.encode(bytes).replaceAll('=', '');
+  }
+
+  /// Fetch the (lifetime-valid) QR token for a result — generates one
+  /// on the fly if it's somehow missing (e.g. records created before
+  /// this feature existed).
+  Future<QrTokenDto?> generateResultQr(
+    Session session, {
+    required int resultId,
+  }) async {
+    try {
+      await requireRole(session, _labQrRoles);
+
+      final existing = await session.db.unsafeQuery(
+        '''
+        SELECT qr_token
+        FROM test_results
+        WHERE result_id = @id
+        LIMIT 1
+        ''',
+        parameters: QueryParameters.named({'id': resultId}),
+      );
+      if (existing.isEmpty) return null;
+
+      final currentToken = existing.first.toColumnMap()['qr_token'] as String?;
+      if (currentToken != null) {
+        return QrTokenDto(resultId: resultId, qrToken: currentToken);
+      }
+
+      // Backfill: this result predates auto-generation at creation time.
+      final token = _generateOpaqueToken();
+      await session.db.unsafeExecute(
+        '''
+        UPDATE test_results
+        SET qr_token = @token, qr_generated_at = NOW()
+        WHERE result_id = @id
+        ''',
+        parameters: QueryParameters.named({'id': resultId, 'token': token}),
+      );
+
+      return QrTokenDto(resultId: resultId, qrToken: token);
+    } catch (e, st) {
+      session.log('generateResultQr failed: $e',
+          level: LogLevel.error, stackTrace: st);
+      return null;
+    }
+  }
+
+  /// Invalidate the current token and issue a fresh one
+  /// (use when a printed QR label is lost/damaged). New token is
+  /// also lifetime-valid.
+  Future<QrTokenDto?> regenerateResultQr(
+    Session session, {
+    required int resultId,
+  }) async {
+    try {
+      await requireRole(session, _labQrRoles);
+
+      final token = _generateOpaqueToken();
+
+      await session.db.unsafeExecute(
+        '''
+        UPDATE test_results
+        SET qr_token = @token,
+            qr_generated_at = NOW(),
+            qr_scanned_count = 0
+        WHERE result_id = @id
+        ''',
+        parameters: QueryParameters.named({'id': resultId, 'token': token}),
+      );
+
+      return QrTokenDto(resultId: resultId, qrToken: token);
+    } catch (e, st) {
+      session.log('regenerateResultQr failed: $e',
+          level: LogLevel.error, stackTrace: st);
+      return null;
+    }
+  }
+
+  /// Resolve a scanned QR token to its underlying record, WITHOUT
+  /// logging the scan yet (used to show a confirmation screen first).
+  /// Returns a masked patient identifier so a stray glance mid-scan
+  /// doesn't expose full PII before staff confirm the action.
+  Future<QrResolveDto?> resolveQrToken(
+    Session session, {
+    required String token,
+  }) async {
+    try {
+      await requireRole(session, _labQrRoles);
+
+      final rows = await session.db.unsafeQuery(
+        '''
+        SELECT
+          tr.result_id, tr.test_id, tr.patient_name, tr.mobile_number,
+          tr.is_uploaded, tr.submitted_at,
+          lt.test_name
+        FROM test_results tr
+        LEFT JOIN lab_tests lt ON lt.test_id = tr.test_id
+        WHERE tr.qr_token = @token
+        LIMIT 1
+        ''',
+        parameters: QueryParameters.named({'token': token}),
+      );
+
+      if (rows.isEmpty) return null; // unknown token
+      final row = rows.first.toColumnMap();
+
+      final name = _safeString(row['patient_name']);
+      final mobile = _safeString(row['mobile_number']);
+
+      return QrResolveDto(
+        resultId: row['result_id'] as int,
+        testId: row['test_id'] as int,
+        testName: row['test_name']?.toString(),
+        maskedPatientName: _maskName(name),
+        maskedMobile: _maskMobile(mobile),
+        isUploaded: (row['is_uploaded'] as bool?) ?? false,
+        submittedAt: row['submitted_at'] as DateTime?,
+      );
+    } catch (e, st) {
+      session.log('resolveQrToken failed: $e',
+          level: LogLevel.error, stackTrace: st);
+      return null;
+    }
+  }
+
+  /// Record an actual scan action (after staff confirms on the resolve
+  /// screen) and bump the scan counters. `action` should be one of
+  /// 'view' | 'collect_sample' | 'submit_result'.
+  Future<bool> recordQrScan(
+    Session session, {
+    required String token,
+    required String action,
+  }) async {
+    try {
+      final userId = await requireRole(session, _labQrRoles);
+
+      final rows = await session.db.unsafeQuery(
+        '''
+        SELECT result_id
+        FROM test_results
+        WHERE qr_token = @token
+        LIMIT 1
+        ''',
+        parameters: QueryParameters.named({'token': token}),
+      );
+      if (rows.isEmpty) return false;
+
+      final resultId = rows.first.toColumnMap()['result_id'] as int;
+
+      await session.db.transaction((transaction) async {
+        await session.db.unsafeExecute(
+          '''
+          UPDATE test_results
+          SET qr_scanned_count = qr_scanned_count + 1,
+              qr_last_scanned_at = NOW(),
+              qr_last_scanned_by = @userId
+          WHERE result_id = @id
+          ''',
+          parameters: QueryParameters.named({'id': resultId, 'userId': userId}),
+        );
+
+        await session.db.unsafeExecute(
+          '''
+          INSERT INTO qr_scan_log (result_id, scanned_by, action)
+          VALUES (@resultId, @userId, @action)
+          ''',
+          parameters: QueryParameters.named({
+            'resultId': resultId,
+            'userId': userId,
+            'action': action,
+          }),
+        );
+      });
+
+      return true;
+    } catch (e, st) {
+      session.log('recordQrScan failed: $e',
+          level: LogLevel.error, stackTrace: st);
+      return false;
+    }
+  }
+
+  String _maskName(String name) {
+    if (name.isEmpty) return '';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    return parts
+        .map((p) => p.isEmpty ? p : '${p[0]}${'*' * (p.length - 1)}')
+        .join(' ');
+  }
+
+  String _maskMobile(String mobile) {
+    if (mobile.length <= 3) return mobile;
+    return '${'*' * (mobile.length - 3)}${mobile.substring(mobile.length - 3)}';
   }
 }

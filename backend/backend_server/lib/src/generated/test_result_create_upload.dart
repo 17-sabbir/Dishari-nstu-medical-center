@@ -24,6 +24,9 @@ abstract class TestResult
     this.attachmentPath,
     this.submittedAt,
     this.createdAt,
+    this.qrToken,
+    this.qrExpiresAt,
+    this.qrScannedCount,
   });
 
   factory TestResult({
@@ -36,6 +39,9 @@ abstract class TestResult
     String? attachmentPath,
     DateTime? submittedAt,
     DateTime? createdAt,
+    String? qrToken,
+    DateTime? qrExpiresAt,
+    int? qrScannedCount,
   }) = _TestResultImpl;
 
   factory TestResult.fromJson(Map<String, dynamic> jsonSerialization) {
@@ -55,6 +61,13 @@ abstract class TestResult
       createdAt: jsonSerialization['createdAt'] == null
           ? null
           : _i1.DateTimeJsonExtension.fromJson(jsonSerialization['createdAt']),
+      qrToken: jsonSerialization['qrToken'] as String?,
+      qrExpiresAt: jsonSerialization['qrExpiresAt'] == null
+          ? null
+          : _i1.DateTimeJsonExtension.fromJson(
+              jsonSerialization['qrExpiresAt'],
+            ),
+      qrScannedCount: jsonSerialization['qrScannedCount'] as int?,
     );
   }
 
@@ -76,6 +89,12 @@ abstract class TestResult
 
   DateTime? createdAt;
 
+  String? qrToken;
+
+  DateTime? qrExpiresAt;
+
+  int? qrScannedCount;
+
   /// Returns a shallow copy of this [TestResult]
   /// with some or all fields replaced by the given arguments.
   @_i1.useResult
@@ -89,6 +108,9 @@ abstract class TestResult
     String? attachmentPath,
     DateTime? submittedAt,
     DateTime? createdAt,
+    String? qrToken,
+    DateTime? qrExpiresAt,
+    int? qrScannedCount,
   });
   @override
   Map<String, dynamic> toJson() {
@@ -103,6 +125,9 @@ abstract class TestResult
       if (attachmentPath != null) 'attachmentPath': attachmentPath,
       if (submittedAt != null) 'submittedAt': submittedAt?.toJson(),
       if (createdAt != null) 'createdAt': createdAt?.toJson(),
+      if (qrToken != null) 'qrToken': qrToken,
+      if (qrExpiresAt != null) 'qrExpiresAt': qrExpiresAt?.toJson(),
+      if (qrScannedCount != null) 'qrScannedCount': qrScannedCount,
     };
   }
 
@@ -119,6 +144,9 @@ abstract class TestResult
       if (attachmentPath != null) 'attachmentPath': attachmentPath,
       if (submittedAt != null) 'submittedAt': submittedAt?.toJson(),
       if (createdAt != null) 'createdAt': createdAt?.toJson(),
+      if (qrToken != null) 'qrToken': qrToken,
+      if (qrExpiresAt != null) 'qrExpiresAt': qrExpiresAt?.toJson(),
+      if (qrScannedCount != null) 'qrScannedCount': qrScannedCount,
     };
   }
 
@@ -141,6 +169,9 @@ class _TestResultImpl extends TestResult {
     String? attachmentPath,
     DateTime? submittedAt,
     DateTime? createdAt,
+    String? qrToken,
+    DateTime? qrExpiresAt,
+    int? qrScannedCount,
   }) : super._(
          resultId: resultId,
          testId: testId,
@@ -151,6 +182,9 @@ class _TestResultImpl extends TestResult {
          attachmentPath: attachmentPath,
          submittedAt: submittedAt,
          createdAt: createdAt,
+         qrToken: qrToken,
+         qrExpiresAt: qrExpiresAt,
+         qrScannedCount: qrScannedCount,
        );
 
   /// Returns a shallow copy of this [TestResult]
@@ -167,6 +201,9 @@ class _TestResultImpl extends TestResult {
     Object? attachmentPath = _Undefined,
     Object? submittedAt = _Undefined,
     Object? createdAt = _Undefined,
+    Object? qrToken = _Undefined,
+    Object? qrExpiresAt = _Undefined,
+    Object? qrScannedCount = _Undefined,
   }) {
     return TestResult(
       resultId: resultId is int? ? resultId : this.resultId,
@@ -180,6 +217,11 @@ class _TestResultImpl extends TestResult {
           : this.attachmentPath,
       submittedAt: submittedAt is DateTime? ? submittedAt : this.submittedAt,
       createdAt: createdAt is DateTime? ? createdAt : this.createdAt,
+      qrToken: qrToken is String? ? qrToken : this.qrToken,
+      qrExpiresAt: qrExpiresAt is DateTime? ? qrExpiresAt : this.qrExpiresAt,
+      qrScannedCount: qrScannedCount is int?
+          ? qrScannedCount
+          : this.qrScannedCount,
     );
   }
 }

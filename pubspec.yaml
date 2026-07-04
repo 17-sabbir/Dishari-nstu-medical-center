@@ -67,6 +67,8 @@ dependencies:
   sign_in_with_apple_web: ^3.0.0
   dio: ^5.9.0
   universal_io: ^2.3.1
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.2.3
 
 
 dev_dependencies:
@@ -80,6 +82,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  analyzer: ^10.0.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

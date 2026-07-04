@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 import 'lab_test_create_and_upload.dart';
 import 'lab_staff_profile.dart';
 import 'manage_test.dart';
+import 'lab_qr_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:backend_client/backend_client.dart';
 
@@ -792,6 +793,19 @@ class _LabTesterHomeState extends State<LabTesterHome>
         automaticallyImplyLeading: false,
         elevation: 0,
         actions: [
+          // QR scan is always reachable from the AppBar (not a body-level
+          // FAB) so it never overlaps the Upload tab's own "create test"
+          // FAB.
+          IconButton(
+            tooltip: 'Scan Lab QR',
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.deepPurple),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LabQrScannerScreen()),
+              );
+            },
+          ),
           if (_selectedIndex == 2) ...[
             IconButton(
               tooltip: "Add New Test",
